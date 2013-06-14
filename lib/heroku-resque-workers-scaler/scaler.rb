@@ -27,6 +27,10 @@ module HerokuResqueAutoScale
         Resque.info[:working].to_i
       end
       
+      def authorized?
+        HerokuResqueAutoScale::Config.environments.include? Rails.env.to_s
+      end
+
       protected
       
       def down? qty
@@ -41,24 +45,20 @@ module HerokuResqueAutoScale
         job_count + working_job_count == 0
       end
       
-      private
-      
-      def authorized?
-        HerokuResqueAutoScale::Config.environments.include? Rails.env.to_s
-      end
-        
     end
   end
 
   def after_perform_scale_down(*args)
-    scale_down
+    scale_down if Scaler.authorized?
   end
 
   def on_failure_scale_down(exception, *args)
-    scale_down
+    scale_down if Scaler.authorized?
   end
 
   def after_enqueue_scale_up(*args)
+    return unless Scaler.authorized?
+
     HerokuResqueAutoScale::Config.thresholds.reverse_each do |scale_info|
       # Run backwards so it gets set to the highest value first
       # Otherwise if there were 70 jobs, it would get set to 1, then 2, then 3, etc
